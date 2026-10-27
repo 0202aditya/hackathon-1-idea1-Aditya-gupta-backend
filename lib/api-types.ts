@@ -81,6 +81,17 @@ export type AiPlan = {
   source: 'ai' | 'template';
 };
 
+export type SearchedTrip = {
+  id: string;
+  kind: "quick" | "full";
+  input: TripInput;
+  createdAt: string;
+  offersCount: number;
+  topOffer?: FlightOffer;
+  savings?: SavingsResult | null;
+  aiPlan?: AiPlan | null;
+};
+
 export type Passenger = {
   id?: string; // Duffel passenger id, filled from the fresh offer
   title: 'mr' | 'ms' | 'mrs' | 'miss' | 'dr';

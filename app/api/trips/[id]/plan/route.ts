@@ -87,6 +87,11 @@ export async function POST(
         .eq("trip_id", id);
     }
 
+    const mem = memoryTrips.get(id);
+    if (mem) {
+      mem.aiPlan = aiPlan;
+    }
+
     return NextResponse.json(aiPlan);
   } catch (error) {
     return errorResponse(error);

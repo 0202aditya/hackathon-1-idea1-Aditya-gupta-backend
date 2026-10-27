@@ -3,7 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, ApiError } from "@/lib/errors";
 import { getOptionalUser } from "@/lib/auth";
 import { createOfferRequest } from "@/lib/duffel/client";
-import { FlightOffer, TripInput } from "@/lib/api-types";
+import { FlightOffer, SearchedTrip, TripInput, UserCard } from "@/lib/api-types";
+import { calculateCardSavings } from "@/lib/engine/savings";
+import { generateTemplatePlan } from "@/lib/ai/gemini";
+import { CARDS_CATALOG } from "@/lib/cards-catalog";
+import { getSessionWallet } from "../wallet/route";
 import { randomUUID } from "crypto";
 
 // 10-minute in-memory search cache
@@ -16,8 +20,129 @@ const searchCache = new Map<string, CacheEntry>();
 // In-memory fallback trip store (for fast testing & non-logged-in sessions)
 export const memoryTrips = new Map<
   string,
-  { trip: TripInput; offers: FlightOffer[]; createdAt: number }
+  {
+    trip: TripInput;
+    offers: FlightOffer[];
+    createdAt: number;
+    savings?: any;
+    aiPlan?: any;
+  }
 >();
+
+export async function GET(req: NextRequest) {
+  try {
+    const { user, supabase } = await getOptionalUser(req);
+
+    if (user) {
+      // 1. Fetch user trips from Supabase joined with trip_results
+      const { data: tripRows, error: tripErr } = await supabase
+        .from("trips")
+        .select(`
+          id,
+          kind,
+          input,
+          created_at,
+          trip_results (
+            offers,
+            savings,
+            ai_plan
+          )
+        `)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (tripErr) {
+        console.error("Failed to fetch user trips from Supabase:", tripErr);
+        throw new ApiError("UPSTREAM_ERROR", tripErr.message, 500);
+      }
+
+      // Fetch user wallet cards in case we need to calculate savings for trips that don't have it yet
+      let userCards: UserCard[] = [];
+      const { data: dbCards } = await supabase
+        .from("user_cards")
+        .select("card_id, points_balance, monthly_spend_minor, cards(*)")
+        .eq("user_id", user.id);
+
+      if (dbCards && dbCards.length > 0) {
+        userCards = dbCards.map((row: any) => ({
+          cardId: row.card_id,
+          card:
+            row.cards ||
+            CARDS_CATALOG.find((c) => c.id === row.card_id) || {
+              id: row.card_id,
+              name: row.card_id,
+              issuer: "Bank",
+            },
+          pointsBalance: Number(row.points_balance) || 0,
+          monthlySpendMinor: row.monthly_spend_minor || {},
+        }));
+      }
+
+      const searchedTrips: SearchedTrip[] = (tripRows || []).map((row: any) => {
+        const results = Array.isArray(row.trip_results) ? row.trip_results[0] : row.trip_results;
+        const offers: FlightOffer[] = results?.offers || [];
+        const topOffer = offers[0];
+
+        let savings = results?.savings;
+        if (!savings && topOffer) {
+          savings = calculateCardSavings(topOffer, userCards, row.input);
+        }
+
+        let aiPlan = results?.ai_plan;
+        if (!aiPlan && savings && topOffer) {
+          aiPlan = generateTemplatePlan(savings, row.input, userCards);
+        }
+
+        return {
+          id: row.id,
+          kind: row.kind || "quick",
+          input: row.input,
+          createdAt: row.created_at,
+          offersCount: offers.length,
+          topOffer,
+          savings,
+          aiPlan,
+        };
+      });
+
+      return NextResponse.json(searchedTrips);
+    }
+
+    // Guest fallback from in-memory trips
+    const guestKey = req.headers.get("x-forwarded-for") || "guest";
+    const guestWallet = Array.from(getSessionWallet(guestKey).values());
+
+    const searchedTrips: SearchedTrip[] = Array.from(memoryTrips.entries())
+      .map(([id, item]) => {
+        const topOffer = item.offers?.[0];
+        let savings = item.savings;
+        if (!savings && topOffer) {
+          savings = calculateCardSavings(topOffer, guestWallet, item.trip);
+        }
+
+        let aiPlan = item.aiPlan;
+        if (!aiPlan && savings && topOffer) {
+          aiPlan = generateTemplatePlan(savings, item.trip, guestWallet);
+        }
+
+        return {
+          id,
+          kind: item.trip.kind || "quick",
+          input: item.trip,
+          createdAt: new Date(item.createdAt).toISOString(),
+          offersCount: item.offers.length,
+          topOffer,
+          savings,
+          aiPlan,
+        };
+      })
+      .reverse();
+
+    return NextResponse.json(searchedTrips);
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
