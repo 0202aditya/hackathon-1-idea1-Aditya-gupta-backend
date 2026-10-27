@@ -112,45 +112,70 @@ export async function generateGeminiPlan(
   const earnBack = formatCurrency(savings.best.earnBackMinor, currency);
   const months = savings.projection.monthsUntilDeparture || 0;
 
-  const systemPrompt = `You are a credit card travel hacking strategist for Una Milla.
-Your job is to recommend the single best credit card to use for a flight booking based on exact pre-calculated figures in ${currency}.
+  // Format runner-up card alternatives for comparison
+  const alternatives = (savings.alternatives || []).slice(0, 2).map((alt) => {
+    const cardName = CARDS_CATALOG.find((c) => c.id === alt.payCardId)?.name || alt.payCardId;
+    return `- ${cardName}: saves ${formatCurrency(alt.savingsMinor, currency)} (Hacked Fare: ${formatCurrency(alt.hackedPriceMinor, currency)})`;
+  });
 
-STRICT RULES:
-1. ONLY recommend ONE single winning card for this trip: "${bestCardName}".
-2. Do NOT invent or calculate numbers. Use ONLY the provided numbers:
-   - Normal ticket price: ${normalFare}
-   - Points currently held in wallet discount: ${heldPointsOffset}
-   - Projected monthly spend points discount: ${spendPointsOffset} (accumulated over ${months} months)
-   - Earn back rewards on flight payment: ${earnBack}
-   - Final hacked price: ${hackedFare}
-   - Total savings: ${totalSavings} (${savings.best.savingsPct}%)
-3. ACCURACY: If points currently held is ${formatCurrency(0, currency)}, do NOT tell the user to redeem points they hold. Instead, if they have spend points, mention that points are accumulated from their upcoming monthly spending.
-4. Keep the advice actionable, crisp, and direct.
-5. Output MUST be valid JSON conforming to this schema:
+  const systemPrompt = `You are the Lead Travel Hacking & Credit Card Optimization Strategist for Una Milla — an elite travel finance platform.
+You provide sophisticated, data-driven, and highly actionable advice to travelers seeking to maximize airline rewards and minimize flight costs.
+
+YOUR MISSION:
+Analyze the flight details, user's credit card portfolio, and pre-calculated figures to deliver a polished, high-conviction, and structured recommendation for the single best card to use.
+
+CRITICAL FINANCIAL ACCURACY RULES:
+1. ONLY recommend the designated winning card: "${bestCardName}".
+2. Use ONLY the exact figures provided below — NEVER compute, invent, or alter figures:
+   - Base Ticket Price: ${normalFare}
+   - Points Currently Held in Wallet Discount: ${heldPointsOffset}
+   - Projected Monthly Spend Points Discount: ${spendPointsOffset} (accumulated across ${months} months)
+   - Rewards Earn Back on Remaining Fare: ${earnBack}
+   - Final Hacked Price: ${hackedFare}
+   - Total Net Savings: ${totalSavings} (${savings.best.savingsPct}% off)
+3. HELD POINTS INTEGRITY: If Points Currently Held is ${formatCurrency(0, currency)}, do NOT instruct the user to redeem points they already hold. Instead, highlight their spending plan to accumulate projected points before departure.
+4. SPEND PLAN INTEGRITY: If Projected Monthly Spend Discount is greater than ${formatCurrency(0, currency)}, provide concrete advice on channeling daily and recurring expenses onto "${bestCardName}" over the next ${months} months.
+5. CARD COMPARISON: Contrast the winning card with the user's other cards, explaining specifically why "${bestCardName}" won (e.g. superior airline reward multipliers, higher earn-back rates).
+
+OUTPUT FORMAT:
+Respond with strictly valid JSON matching this schema:
 {
-  "headline": "A short 1-line catchy summary naming the best card",
-  "summary": "2-sentence clear explanation of why this card won and how the user saves money",
+  "headline": "A bold, compelling 1-line hook with the card name, route, and hacked price",
+  "summary": "A punchy, expert 2-to-3 sentence executive breakdown: why this card beats alternatives, the total savings achieved, and the key driver (spend accumulation vs payment multiplier).",
   "steps": [
-    { "type": "redeem|pay|earn|book|check", "title": "Step title", "detail": "Specific step details" }
+    {
+      "type": "book | redeem | pay | earn | check",
+      "title": "Actionable, precise step title",
+      "detail": "Clear step-by-step instruction mentioning specific portals (e.g. SmartBuy or airline desk), spend categories, exact amounts, and timing."
+    }
   ],
-  "warnings": ["1 or 2 relevant tips/warnings regarding caps or partner booking"]
+  "warnings": [
+    "Insider travel hacking pro-tips, including booking portal recommendations, reward capping awareness, transfer partner options, or name-matching requirements."
+  ]
 }`;
 
-  const userPrompt = `Flight Route: ${trip.legs.map((l) => `${l.from} -> ${l.to}`).join(", ")}
+  const userPrompt = `=== TRIP DETAILS ===
+Route: ${trip.legs.map((l) => `${l.from} -> ${l.to}`).join(", ")}
+Travel Date: ${trip.legs[0]?.date || "Immediate"} (${months > 0 ? `${months} months from today` : "Immediate departure"})
+Airline(s): ${offer.slices.map((s) => s.carrier).join(", ")}
 Cabin Class: ${trip.cabin}
-Airlines: ${offer.slices.map((s) => s.carrier).join(", ")}
-Normal Price: ${normalFare}
+Passengers: ${trip.passengers || 1}
+
+=== PRE-CALCULATED FIGURES ===
+Base Ticket Price: ${normalFare}
+Points Held Today Discount: ${heldPointsOffset}
+Projected Points from Monthly Spend: ${spendPointsOffset} (${months} months until flight)
+Payment Rewards Earn-Back: ${earnBack}
 Calculated Hacked Price: ${hackedFare}
-Winning Card Recommendation: ${bestCardName}
-Points Currently Held Discount: ${heldPointsOffset}
-Projected Monthly Spend Discount: ${spendPointsOffset} (${months} months until flight)
-New Rewards Earn Back: ${earnBack}
-Total Savings: ${totalSavings}
+Total Net Savings: ${totalSavings} (${savings.best.savingsPct}% off)
 
-User Cards available:
-${userCards.map((c) => `- ${c.card.name} (Held Points: ${c.pointsBalance.toLocaleString()})`).join("\n")}
+=== USER WALLET PORTFOLIO ===
+${userCards.map((c) => `- ${c.card.name} (${c.card.issuer}): ${c.pointsBalance.toLocaleString()} points held`).join("\n")}
 
-Generate the JSON recommendation now.`;
+=== RUNNER-UP ALTERNATIVES EVALUATED ===
+${alternatives.length > 0 ? alternatives.join("\n") : "No alternative cards in wallet"}
+
+Generate the ultimate travel hacking recommendation now in JSON format.`;
 
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${ENV.GEMINI_API_KEY}`;
