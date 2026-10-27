@@ -1,6 +1,6 @@
-# Una Milla - Backend API
+# A Una Milla - Backend API
 
-Backend API for the Una Milla travel hack platform.
+Backend API for the A Una Milla travel hack platform.
 
 ## Features
 - **Duffel Flight Search Integration**: Real-time airline flight searches (multi-slice & single-slice) via Duffel Air API.
