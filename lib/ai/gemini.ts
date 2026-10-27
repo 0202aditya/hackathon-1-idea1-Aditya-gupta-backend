@@ -9,10 +9,9 @@ function formatCurrency(minor: number, currency: string = "EUR"): string {
     minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
     maximumFractionDigits: 2,
   });
-  if (currency === "EUR") return `€${formatted}`;
-  if (currency === "INR") return `₹${Math.round(amount).toLocaleString("en-IN")}`;
   if (currency === "USD") return `$${formatted}`;
-  return `${currency} ${formatted}`;
+  if (currency === "GBP") return `£${formatted}`;
+  return `€${formatted}`;
 }
 
 export function generateTemplatePlan(
