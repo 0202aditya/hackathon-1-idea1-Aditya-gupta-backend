@@ -46,7 +46,9 @@ export type FlightOffer = {
 export type Strategy = {
   redeemCardId?: string;
   payCardId?: string;
-  redeemOffsetMinor: number; // value of points already held
+  heldPointsOffsetMinor?: number; // value of points already held in wallet
+  spendPointsOffsetMinor?: number; // value of points accumulated from monthly spend
+  redeemOffsetMinor: number; // total points discount (held + spend)
   earnBackMinor: number; // new rewards earned on this purchase
   hackedPriceMinor: number;
   savingsMinor: number;
@@ -61,6 +63,7 @@ export type SavingsResult = {
   projection: {
     pointsByDeparture: Record<string, number>;
     monthlyPointsEarned: Record<string, number>;
+    monthsUntilDeparture?: number;
   };
   assumptions: string[];
   ratesVerifiedAt?: string;

@@ -80,7 +80,7 @@ export function mapDuffelOfferToFlightOffer(
   return {
     offerId: duffelOffer.id,
     totalMinor: toMinorUnits(duffelOffer.total_amount),
-    currency: duffelOffer.total_currency || "INR",
+    currency: duffelOffer.total_currency || "EUR",
     cabin,
     slices,
     expiresAt: duffelOffer.expires_at || new Date(Date.now() + 3600000).toISOString(),

@@ -16,21 +16,7 @@ export const CARDS_CATALOG: Card[] = [
   { id: "kotak", name: "Kotak White", issuer: "Kotak", flightsReturnPct: 2.5 },
 ];
 
-export async function ensureCardsInDatabase(supabase: any) {
-  try {
-    const { error } = await supabase.from("cards").upsert(
-      CARDS_CATALOG.map((c) => ({
-        id: c.id,
-        name: c.name,
-        issuer: c.issuer,
-        source: "cardadvisor.in",
-      })),
-      { onConflict: "id" }
-    );
-    if (error) {
-      console.error("ensureCardsInDatabase error:", error);
-    }
-  } catch (err) {
-    console.error("ensureCardsInDatabase caught:", err);
-  }
+export async function ensureCardsInDatabase(_supabase: any) {
+  // Cards are seeded in Supabase via database migration.
+  return;
 }

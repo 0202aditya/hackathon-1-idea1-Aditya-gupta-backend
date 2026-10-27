@@ -37,10 +37,7 @@ export async function PUT(
     const { user, supabase } = await getOptionalUser(req);
 
     if (user) {
-      // 1. Ensure the card catalog row exists so foreign key doesn't fail
-      await ensureCardsInDatabase(supabase);
-
-      // 2. Upsert into Supabase user_cards
+      // Upsert into Supabase user_cards
       const { data, error } = await supabase
         .from("user_cards")
         .upsert(

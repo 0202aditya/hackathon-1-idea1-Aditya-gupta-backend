@@ -6,6 +6,7 @@ export const ENV = {
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
   DUFFEL_ACCESS_TOKEN: process.env.DUFFEL_ACCESS_TOKEN || "",
   FRONTEND_ORIGIN: process.env.FRONTEND_ORIGIN || "http://localhost:3000",
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY || "",
 };
 
 export function validateEnv() {
@@ -18,4 +19,3 @@ export function validateEnv() {
     );
   }
 }
-
